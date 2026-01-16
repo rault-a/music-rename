@@ -1,0 +1,8 @@
+{
+  "name": "music-rename",
+  "packageManager": "yarn@4.12.0",
+  "type": "module",
+  "dependencies": {
+    "music-metadata": "^11.10.6"
+  }
+}
