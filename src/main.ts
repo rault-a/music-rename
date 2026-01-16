@@ -1,6 +1,6 @@
 import { parseFile } from "music-metadata";
 import { readdir, rename } from "node:fs/promises";
-import { join as joinPath, extname } from "node:path";
+import { join as joinPath, extname, basename } from "node:path";
 import { parseArgs } from "node:util";
 
 const { values } = parseArgs({
@@ -16,8 +16,10 @@ const { values } = parseArgs({
   },
 });
 
+const executableName = basename(process.argv[1]!);
+
 function help() {
-  console.log(`Usage: music-rename --directory <path>
+  console.log(`Usage: ${executableName} --directory <path>
 
 Options:
   --directory, -d   Path to the directory containing audio files
@@ -67,7 +69,7 @@ const TRACK_NUMBER_SEPARATOR = ". ";
 
 const paddingSize = Math.max(
   Math.ceil(Math.log(files.length + 1) / Math.log(10)),
-  MIN_PADDING_SIZE
+  MIN_PADDING_SIZE,
 );
 
 for (const file of files) {
@@ -87,7 +89,7 @@ for (const file of files) {
     .entries()
     .reduce(
       (acc, [target, replacement]) => acc.replaceAll(target, replacement),
-      title.trim()
+      title.trim(),
     );
 
   const paddedTrackNumber = String(trackNumber).padStart(paddingSize, "0");
@@ -98,7 +100,7 @@ for (const file of files) {
     joinPath(dirPath, file),
     joinPath(
       dirPath,
-      `${paddedTrackNumber}${TRACK_NUMBER_SEPARATOR}${replacedTitle}${extension}`
-    )
+      `${paddedTrackNumber}${TRACK_NUMBER_SEPARATOR}${replacedTitle}${extension}`,
+    ),
   );
 }
