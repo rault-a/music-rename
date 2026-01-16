@@ -13,6 +13,7 @@
     "types": ["bun"],
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
+    "noEmit": true,
 
     // Other Outputs
     "sourceMap": true,
