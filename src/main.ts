@@ -80,7 +80,7 @@ for (const file of files) {
     track: { no: trackNumber },
   } = data.common;
 
-  if (!title || !trackNumber) {
+  if (!title) {
     console.warn(`Skipping file (missing title or track number): ${file}`);
     continue;
   }
@@ -92,15 +92,15 @@ for (const file of files) {
       title.trim(),
     );
 
-  const paddedTrackNumber = String(trackNumber).padStart(paddingSize, "0");
+  const paddedTrackNumber =
+    trackNumber != null
+      ? String(trackNumber).padStart(paddingSize, "0") + TRACK_NUMBER_SEPARATOR
+      : "";
 
   const extension = extname(file);
 
   await rename(
     joinPath(dirPath, file),
-    joinPath(
-      dirPath,
-      `${paddedTrackNumber}${TRACK_NUMBER_SEPARATOR}${replacedTitle}${extension}`,
-    ),
+    joinPath(dirPath, `${paddedTrackNumber}${replacedTitle}${extension}`),
   );
 }
