@@ -1,8 +1,40 @@
 import { parseFile } from "music-metadata";
 import { readdir, rename } from "node:fs/promises";
 import { join as joinPath, extname } from "node:path";
+import { parseArgs } from "node:util";
 
-const dirPath = process.argv.at(-1);
+const { values } = parseArgs({
+  options: {
+    directory: {
+      type: "string",
+      short: "d",
+    },
+    help: {
+      type: "boolean",
+      short: "h",
+    },
+  },
+});
+
+function help() {
+  console.log(`Usage: music-rename --directory <path>
+
+Options:
+  --directory, -d   Path to the directory containing audio files
+  --help, -h        Show this help message`);
+}
+
+if (values.help) {
+  help();
+  process.exit(0);
+}
+
+const dirPath = values.directory;
+
+if (!dirPath) {
+  help();
+  process.exit(1);
+}
 
 const replacements = new Map([
   [":", "ː"],
@@ -45,6 +77,11 @@ for (const file of files) {
     title,
     track: { no: trackNumber },
   } = data.common;
+
+  if (!title || !trackNumber) {
+    console.warn(`Skipping file (missing title or track number): ${file}`);
+    continue;
+  }
 
   const replacedTitle = replacements
     .entries()
