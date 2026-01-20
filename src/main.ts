@@ -1,6 +1,6 @@
 import { parseFile } from "music-metadata";
 import { readdir, rename } from "node:fs/promises";
-import { join as joinPath, extname, basename } from "node:path";
+import { join as joinPath, extname, basename, dirname } from "node:path";
 import { parseArgs } from "node:util";
 
 const { values } = parseArgs({
@@ -13,6 +13,10 @@ const { values } = parseArgs({
       type: "boolean",
       short: "h",
     },
+    recursive: {
+      type: "boolean",
+      short: "r",
+    },
   },
 });
 
@@ -23,6 +27,7 @@ function help() {
 
 Options:
   --directory, -d   Path to the directory containing audio files
+  --recursive, -r   Process files in subdirectories recursively
   --help, -h        Show this help message`);
 }
 
@@ -61,29 +66,67 @@ const audioFileExtensions = new Set([
   ".webm",
 ]);
 
-const allFiles = await readdir(dirPath);
-const files = allFiles.filter((file) => audioFileExtensions.has(extname(file)));
+const allFiles = await readdir(dirPath, {
+  withFileTypes: true,
+  recursive: values.recursive ?? false,
+});
+const files = allFiles
+  .filter(
+    (file) => file.isFile() && audioFileExtensions.has(extname(file.name)),
+  )
+  .map((file) => joinPath(file.parentPath, file.name));
 
 const MIN_PADDING_SIZE = 2;
 const TRACK_NUMBER_SEPARATOR = ". ";
+const DISK_NUMBER_SEPARATOR = ".";
 
-const paddingSize = Math.max(
-  Math.ceil(Math.log(files.length + 1) / Math.log(10)),
-  MIN_PADDING_SIZE,
+function getPaddingSize(totalFiles: number): number {
+  return Math.max(
+    Math.ceil(Math.log(totalFiles + 1) / Math.log(10)),
+    MIN_PADDING_SIZE,
+  );
+}
+
+const filesWithMetadata = await Promise.all(
+  files.map(async (file) => {
+    const data = await parseFile(file);
+
+    return {
+      file,
+      album: data.common.album,
+      trackNumber: data.common.track.no,
+      title: data.common.title,
+      diskNumber:
+        data.common.disk.no && data.common.disk.of
+          ? data.common.disk.no
+          : undefined,
+    };
+  }),
 );
 
-for (const file of files) {
-  const data = await parseFile(joinPath(dirPath, file));
+const albumsWithMaxTrackNumber = new Map<string, number>();
+for (const { album, trackNumber } of filesWithMetadata) {
+  if (!album || trackNumber == null) {
+    continue;
+  }
 
-  const {
-    title,
-    track: { no: trackNumber },
-  } = data.common;
+  const currentMax = albumsWithMaxTrackNumber.get(album) ?? 0;
+  if (trackNumber > currentMax) {
+    albumsWithMaxTrackNumber.set(album, trackNumber);
+  }
+}
+
+for (const file of filesWithMetadata) {
+  const { title, trackNumber, album, diskNumber } = file;
 
   if (!title) {
     console.warn(`Skipping file (missing title or track number): ${file}`);
     continue;
   }
+
+  const paddingSize = getPaddingSize(
+    (album ? albumsWithMaxTrackNumber.get(album) : 0) ?? 0,
+  );
 
   const replacedTitle = replacements
     .entries()
@@ -97,10 +140,16 @@ for (const file of files) {
       ? String(trackNumber).padStart(paddingSize, "0") + TRACK_NUMBER_SEPARATOR
       : "";
 
-  const extension = extname(file);
+  const paddedDiskNumber =
+    diskNumber != null ? String(diskNumber) + DISK_NUMBER_SEPARATOR : "";
+
+  const extension = extname(file.file);
 
   await rename(
-    joinPath(dirPath, file),
-    joinPath(dirPath, `${paddedTrackNumber}${replacedTitle}${extension}`),
+    file.file,
+    joinPath(
+      dirname(file.file),
+      `${paddedDiskNumber}${paddedTrackNumber}${replacedTitle}${extension}`,
+    ),
   );
 }
