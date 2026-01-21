@@ -95,25 +95,40 @@ const filesWithMetadata = await Promise.all(
       file,
       album: data.common.album,
       trackNumber: data.common.track.no,
+      trackAmount: data.common.track.of,
       title: data.common.title,
-      diskNumber:
-        data.common.disk.no && data.common.disk.of
-          ? data.common.disk.no
-          : undefined,
+      diskNumber: data.common.disk.no,
+      diskAmount: data.common.disk.of,
     };
   }),
 );
 
-const albumsWithMaxTrackNumber = new Map<string, number>();
-for (const { album, trackNumber } of filesWithMetadata) {
-  if (!album || trackNumber == null) {
+const albumsWithMaxTrackAndDiskNumber = new Map<
+  string,
+  { track: number; disk: number }
+>();
+for (const file of filesWithMetadata) {
+  if (!file.album) {
     continue;
   }
 
-  const currentMax = albumsWithMaxTrackNumber.get(album) ?? 0;
-  if (trackNumber > currentMax) {
-    albumsWithMaxTrackNumber.set(album, trackNumber);
-  }
+  const currentMax = albumsWithMaxTrackAndDiskNumber.get(file.album) ?? {
+    track: 0,
+    disk: 0,
+  };
+
+  albumsWithMaxTrackAndDiskNumber.set(file.album, {
+    track: Math.max(
+      currentMax.track ?? 0,
+      file.trackAmount ?? 0,
+      file.trackNumber ?? 0,
+    ),
+    disk: Math.max(
+      currentMax.disk ?? 0,
+      file.diskAmount ?? 0,
+      file.diskNumber ?? 0,
+    ),
+  });
 }
 
 for (const file of filesWithMetadata) {
@@ -124,8 +139,11 @@ for (const file of filesWithMetadata) {
     continue;
   }
 
+  const { track: albumTrackNumber, disk: albumDiskNumber } =
+    albumsWithMaxTrackAndDiskNumber.get(album ?? "") ?? { track: 0, disk: 0 };
+
   const paddingSize = getPaddingSize(
-    (album ? albumsWithMaxTrackNumber.get(album) : 0) ?? 0,
+    (album ? albumsWithMaxTrackAndDiskNumber.get(album)?.track : 0) ?? 0,
   );
 
   const replacedTitle = replacements
@@ -136,12 +154,14 @@ for (const file of filesWithMetadata) {
     );
 
   const paddedTrackNumber =
-    trackNumber != null
+    trackNumber != null && albumTrackNumber > 1
       ? String(trackNumber).padStart(paddingSize, "0") + TRACK_NUMBER_SEPARATOR
       : "";
 
   const paddedDiskNumber =
-    diskNumber != null ? String(diskNumber) + DISK_NUMBER_SEPARATOR : "";
+    diskNumber != null && albumDiskNumber > 1
+      ? String(diskNumber) + DISK_NUMBER_SEPARATOR
+      : "";
 
   const extension = extname(file.file);
 
