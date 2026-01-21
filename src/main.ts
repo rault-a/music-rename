@@ -1,7 +1,8 @@
 import { parseFile } from "music-metadata";
 import { readdir, rename } from "node:fs/promises";
-import { join as joinPath, extname, basename, dirname } from "node:path";
+import { join as joinPath, basename, dirname } from "node:path";
 import { parseArgs } from "node:util";
+import { fileTypeFromFile } from "file-type";
 
 const { values } = parseArgs({
   options: {
@@ -55,25 +56,12 @@ const replacements = new Map([
   ["*", "﹡"],
 ]);
 
-const audioFileExtensions = new Set([
-  ".mp3",
-  ".flac",
-  ".wav",
-  ".m4a",
-  ".aac",
-  ".ogg",
-  ".wma",
-  ".webm",
-]);
-
 const allFiles = await readdir(dirPath, {
   withFileTypes: true,
   recursive: values.recursive ?? false,
 });
 const files = allFiles
-  .filter(
-    (file) => file.isFile() && audioFileExtensions.has(extname(file.name)),
-  )
+  .filter((file) => file.isFile())
   .map((file) => joinPath(file.parentPath, file.name));
 
 const MIN_PADDING_SIZE = 2;
@@ -90,6 +78,11 @@ function getPaddingSize(totalFiles: number): number {
 const filesWithMetadata = await Promise.all(
   files.map(async (file) => {
     const data = await parseFile(file);
+    const type = await fileTypeFromFile(file);
+
+    if (type?.mime.startsWith("audio/") !== true) {
+      return undefined;
+    }
 
     return {
       file,
@@ -99,6 +92,7 @@ const filesWithMetadata = await Promise.all(
       title: data.common.title,
       diskNumber: data.common.disk.no,
       diskAmount: data.common.disk.of,
+      type,
     };
   }),
 );
@@ -108,7 +102,7 @@ const albumsWithMaxTrackAndDiskNumber = new Map<
   { track: number; disk: number }
 >();
 for (const file of filesWithMetadata) {
-  if (!file.album) {
+  if (!file?.album) {
     continue;
   }
 
@@ -132,6 +126,10 @@ for (const file of filesWithMetadata) {
 }
 
 for (const file of filesWithMetadata) {
+  if (!file) {
+    continue;
+  }
+
   const { title, trackNumber, album, diskNumber } = file;
 
   if (!title) {
@@ -163,7 +161,7 @@ for (const file of filesWithMetadata) {
       ? String(diskNumber) + DISK_NUMBER_SEPARATOR
       : "";
 
-  const extension = extname(file.file);
+  const extension = `.${file.type.ext}`;
 
   await rename(
     file.file,

@@ -5,6 +5,7 @@
     "": {
       "name": "music-rename",
       "dependencies": {
+        "file-type": "^21.3.0",
         "music-metadata": "11.10.6",
       },
       "devDependencies": {
