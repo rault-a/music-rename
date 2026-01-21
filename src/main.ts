@@ -77,12 +77,13 @@ function getPaddingSize(totalFiles: number): number {
 
 const filesWithMetadata = await Promise.all(
   files.map(async (file) => {
-    const data = await parseFile(file);
     const type = await fileTypeFromFile(file);
 
     if (type?.mime.startsWith("audio/") !== true) {
       return undefined;
     }
+
+    const data = await parseFile(file);
 
     return {
       file,
